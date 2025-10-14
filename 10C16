@@ -1,0 +1,55 @@
+#include <Servo.h>
+#include <math.h>
+
+#define PIN_SERVO 10
+#define TRIG_PIN 2
+#define ECHO_PIN 3
+
+Servo myServo;
+
+long getDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  long distance = duration * 0.034 / 2; // cm 단위
+  return distance;
+}
+
+double sigmoid(double x) {
+  return 1.0 / (1.0 + exp(-x));
+}
+
+void smoothMoveSigmoid(Servo &servo, int start, int stop, unsigned long duration) {
+  unsigned long startTime = millis();
+  while (millis() - startTime <= duration) {
+    double t = (double)(millis() - startTime) / duration;  // 0~1
+    double s = sigmoid(12 * (t - 0.5));                    // Sigmoid 곡선
+    int angle = start + (stop - start) * s;
+    servo.write(angle);
+    delay(20);
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  myServo.attach(PIN_SERVO);
+  myServo.write(0); // 차단기 닫힘 상태
+  delay(500);
+}
+
+void loop() {
+  long distance = getDistance();
+  Serial.println(distance);
+
+  if (distance < 15) {  // 차량 접근 감지
+    smoothMoveSigmoid(myServo, 0, 90, 2000);  // 부드럽게 올리기
+    delay(3000);                              // 차량 통과 대기
+    smoothMoveSigmoid(myServo, 90, 0, 2000);  // 부드럽게 내리기
+  }
+  delay(100);
+}
